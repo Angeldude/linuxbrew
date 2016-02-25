@@ -1,14 +1,13 @@
 class OpenMpi < Formula
   desc "High performance message passing library"
   homepage "https://www.open-mpi.org/"
-  url "https://www.open-mpi.org/software/ompi/v1.10/downloads/openmpi-1.10.0.tar.bz2"
-  sha256 "26b432ce8dcbad250a9787402f2c999ecb6c25695b00c9c6ee05a306c78b6490"
+  url "https://www.open-mpi.org/software/ompi/v1.10/downloads/openmpi-1.10.2.tar.bz2"
+  sha256 "8846e7e69a203db8f50af90fa037f0ba47e3f32e4c9ccdae2db22898fd4d1f59"
 
   bottle do
-    sha256 "0db613a1d46fee336d4ff73fea321a258831898c75ed21fb9b7a04428488a864" => :el_capitan
-    sha256 "27b7652c76a14b6cc2587963a7b90384844cbc52e947569f24bee71697447b37" => :yosemite
-    sha256 "8db6160f29874dac3705f5c18a3cb9e62e0b36c8beaed70b72dc4aeda642d1c8" => :mavericks
-    sha256 "823851cf8e01825899d97dc1766dc1c44eb11f5cc1a3a25b60b5c087c35ec81d" => :mountain_lion
+    sha256 "a2f66b3a19c916752c0dbda29d09d97c7fa86e36cac403bbfaf161a41f4edcae" => :el_capitan
+    sha256 "f304a938f8e55640758e9005dc6de4d847a1b97b4e1f0dc17d7553cd66043f98" => :yosemite
+    sha256 "480ad18bcb7debf3b7d99e6d37d402dafeaa9fd6a5424932ed208c47320d0cc6" => :mavericks
   end
 
   head do
@@ -54,7 +53,9 @@ class OpenMpi < Formula
 
     # If Fortran bindings were built, there will be stray `.mod` files
     # (Fortran header) in `lib` that need to be moved to `include`.
-    include.install Dir["#{lib}/*.mod"]
+    if build.with? "fortran"
+      include.install Dir["#{lib}/*.mod"]
+    end
 
     if build.stable?
       # Move vtsetup.jar from bin to libexec.
@@ -84,5 +85,19 @@ class OpenMpi < Formula
     system "#{bin}/mpicc", "hello.c", "-o", "hello"
     system "./hello"
     system "#{bin}/mpirun", "-np", "4", "./hello"
+    (testpath/"hellof.f90").write <<-EOS.undent
+      program hello
+      include 'mpif.h'
+      integer rank, size, ierror, tag, status(MPI_STATUS_SIZE)
+      call MPI_INIT(ierror)
+      call MPI_COMM_SIZE(MPI_COMM_WORLD, size, ierror)
+      call MPI_COMM_RANK(MPI_COMM_WORLD, rank, ierror)
+      print*, 'node', rank, ': Hello Fortran world'
+      call MPI_FINALIZE(ierror)
+      end
+    EOS
+    system "#{bin}/mpif90", "hellof.f90", "-o", "hellof"
+    system "./hellof"
+    system "#{bin}/mpirun", "-np", "4", "./hellof"
   end
 end

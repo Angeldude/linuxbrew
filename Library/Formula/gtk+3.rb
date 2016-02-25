@@ -1,13 +1,13 @@
 class Gtkx3 < Formula
   desc "Toolkit for creating graphical user interfaces"
   homepage "http://gtk.org/"
-  url "https://download.gnome.org/sources/gtk+/3.18/gtk+-3.18.2.tar.xz"
-  sha256 "5dbec561c4a00070073bf9cf4cfdd61fab4a14c8ff5b15d700bd378f8185e152"
+  url "https://download.gnome.org/sources/gtk+/3.18/gtk+-3.18.7.tar.xz"
+  sha256 "a76e1cb0ac45ce5c2734f6778f2731a5c6a23d1ff6bd4db357774f014ee68820"
 
   bottle do
-    sha256 "e9c3c4b941da618f48feedded0be5c4d381df4b4c2a6f576895e961931a3d30c" => :el_capitan
-    sha256 "4904bd1646a5a9adb54034adf1434d74e1d9dcc1ffa7c89c9c66300c58ae9cb3" => :yosemite
-    sha256 "3c6800041cc367442007367c30bc90da172337153f8a8d2b711e1ac7c37ac3c3" => :mavericks
+    sha256 "d938661ed85cca23feba465da1f8bedb16fdc0962bee2b90c9f81216d8be914f" => :el_capitan
+    sha256 "271f7accb9f53f2e2fe8e25fadcf7cbf7e5b82be5018c30abee776467af56ee8" => :yosemite
+    sha256 "791a36915ed00ff99bd7e72392427a15eaf6fc596a174fb4323adf2b6b48f2e5" => :mavericks
   end
 
   option :universal
@@ -23,6 +23,16 @@ class Gtkx3 < Formula
   depends_on "pango"
   depends_on "glib"
   depends_on "hicolor-icon-theme"
+  depends_on "cairo" => "with-x11" unless OS.mac?
+
+  # Replace a keyword not supported by Snow Leopard's Objective-C compiler.
+  # https://bugzilla.gnome.org/show_bug.cgi?id=756770
+  if MacOS.version <= :snow_leopard
+    patch do
+      url "https://bugzilla.gnome.org/attachment.cgi?id=313599&format=raw"
+      sha256 "a090b19d3c15364914917d9893be292225e8b8a016f2833a5b8354f079475a73"
+    end
+  end
 
   def install
     ENV.universal_binary if build.universal?
@@ -34,9 +44,13 @@ class Gtkx3 < Formula
       --disable-glibtest
       --enable-introspection=yes
       --disable-schemas-compile
-      --enable-quartz-backend
-      --disable-x11-backend
     ]
+
+    if OS.mac?
+      args << "--enable-quartz-backend" << "--disable-x11-backend"
+    else
+      args << "--disable-quartz-backend" << "--enable-x11-backend"
+    end
 
     args << "--enable-quartz-relocation" if build.with?("quartz-relocation")
 

@@ -1,8 +1,8 @@
 require "hardware"
-require "os/mac"
 require "extend/ENV/shared"
 
-# @deprecated
+# TODO: deprecate compiling related codes after it's only used by brew test.
+# @private
 module Stdenv
   include SharedEnvExtension
 
@@ -57,19 +57,11 @@ module Stdenv
     append "LDFLAGS", "-Wl,-headerpad_max_install_names" if OS.mac?
 
     if OS.linux? && !["glibc", "glibc25"].include?(formula && formula.name)
-      # Set the dynamic linker
-      glibc = Formula["glibc"]
-      if glibc.installed?
-        ldso = glibc.opt_lib/"ld-linux-x86-64.so.2"
-        if ldso.readable?
-          append "LDFLAGS", "-Wl,--dynamic-linker=#{ldso}"
-        end
-      else
-        # Set the dynamic library search path
-        self["LD_RUN_PATH"] = "#{HOMEBREW_PREFIX}/lib"
-      end
-      # Set the dynamic library search path
-      append "LDFLAGS", "-Wl,-rpath,#{HOMEBREW_PREFIX}/lib"
+      # Add this formula's library directory to the shared library search path.
+      prepend "LD_LIBRARY_PATH", formula.lib, File::PATH_SEPARATOR if formula
+
+      # Set the dynamic linker and library search path.
+      append "LDFLAGS", "-Wl,--dynamic-linker=#{HOMEBREW_PREFIX}/lib/ld.so -Wl,-rpath,#{HOMEBREW_PREFIX}/lib"
     end
 
     if inherit?
@@ -294,6 +286,9 @@ module Stdenv
   end
 
   def universal_binary
+    return unless OS.mac?
+    check_for_compiler_universal_support
+
     append_to_cflags Hardware::CPU.universal_archs.as_arch_flags
     append "LDFLAGS", Hardware::CPU.universal_archs.as_arch_flags
 

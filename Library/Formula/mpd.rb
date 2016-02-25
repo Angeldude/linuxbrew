@@ -1,19 +1,15 @@
 class Mpd < Formula
   desc "Music Player Daemon"
   homepage "http://www.musicpd.org/"
+  url "http://www.musicpd.org/download/mpd/0.19/mpd-0.19.12.tar.xz"
+  sha256 "7b6fe6c7ce72f5f80a276d680072b524ecb395e546e252b8f3a0756377e1e875"
   revision 1
-
-  stable do
-    url "http://www.musicpd.org/download/mpd/0.19/mpd-0.19.10.tar.xz"
-    sha256 "c386eb3d22f98dc993b5ae3c272f969aa7763713483c6800040ebf1791b15851"
-  end
 
   bottle do
     cellar :any
-    sha256 "a09a3244adb04b5b1c9b0ed147df1af65a67ca0e1b3a902de1f6fa71b8c6bfa7" => :el_capitan
-    sha256 "a6615df5ecee11a47d2e89492ba1d0eceb51bc832947fa819bab7b047ce09769" => :yosemite
-    sha256 "e42806034935a83e74af7be956dd1bb2c01dacad3243713f0af806a16ac4068f" => :mavericks
-    sha256 "6b2bd4efd0e48f603327446c40229fc67fc697b0011859cdefb3cb0fa3ef8059" => :mountain_lion
+    sha256 "519db64468e6d743e37cc7d312dfd9313bf1cbd0b18c12d99cf18b38ef3c4dc0" => :el_capitan
+    sha256 "87bda8fa0657f2faf637243b965769446d3318e023c2ca3e50f6f07f7cbf35e3" => :yosemite
+    sha256 "84616412b8473feb5bec4925a976c730a478a364239fd786e088d94970a12964" => :mavericks
   end
 
   head do
@@ -44,7 +40,7 @@ class Mpd < Formula
   needs :cxx11
 
   depends_on "libmpdclient"
-  depends_on "ffmpeg"                   # lots of codecs
+  depends_on "ffmpeg" # lots of codecs
   # mpd also supports mad, mpg123, libsndfile, and audiofile, but those are
   # redundant with ffmpeg
   depends_on "fluid-synth"              # MIDI
@@ -98,7 +94,7 @@ class Mpd < Formula
     ENV.j1 # Directories are created in parallel, so let's not do that
     system "make", "install"
 
-    (etc+"mpd").install "doc/mpdconf.example" => "mpd.conf"
+    (etc/"mpd").install "doc/mpdconf.example" => "mpd.conf"
   end
 
   plist_options :manual => "mpd"
@@ -133,10 +129,10 @@ class Mpd < Formula
     sleep 2
 
     begin
-      assert_match /OK MPD/, shell_output("curl localhost:6600")
+      assert_match "OK MPD", shell_output("curl localhost:6600")
     ensure
-      Process.kill("SIGINT", pid)
-      Process.wait(pid)
+      Process.kill "SIGINT", pid
+      Process.wait pid
     end
   end
 end

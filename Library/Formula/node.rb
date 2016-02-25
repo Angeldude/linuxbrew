@@ -1,14 +1,14 @@
 class Node < Formula
   desc "Platform built on the V8 JavaScript runtime to build network applications"
   homepage "https://nodejs.org/"
-  url "https://nodejs.org/dist/v4.2.1/node-v4.2.1.tar.gz"
-  sha256 "8861b9f4c3b4db380fcda19a710c0430c3d62d03ee176c64db63eef95a672663"
+  url "https://nodejs.org/dist/v5.7.0/node-v5.7.0.tar.gz"
+  sha256 "2338b46a2f45fbb747089c66931f62555f25a5928511d3a43bbb3a39dcded2d8"
   head "https://github.com/nodejs/node.git"
 
   bottle do
-    sha256 "8592bb96777b29c45293da698de092da39547130e9eced251060cd032ffd0326" => :el_capitan
-    sha256 "474d4f7c08fd5c3ede9155e0f44704abbe84db0ccaba4346d923079a74a59105" => :yosemite
-    sha256 "006d46e8db90432c8dc1140b32f5ac1ea041a0ce3a84c70db3276fecca1243a5" => :mavericks
+    sha256 "e48f83d8d2573de4ff3ed750571680c0554c03af62b3e662061547c935f641a7" => :el_capitan
+    sha256 "4af672b11335c86264b7787a9c9a8aaa154a8bb4e2f59c7b8c61c8c60b12500e" => :yosemite
+    sha256 "4c2733500214c7b9c57af0897323914e326afaf6f571af13152dfac878ac0555" => :mavericks
   end
 
   option "with-debug", "Build with debugger hooks"
@@ -23,17 +23,26 @@ class Node < Formula
   depends_on "pkg-config" => :build
   depends_on "openssl" => :optional
 
-  fails_with :llvm do
-    build 2326
+  # Per upstream - "Need g++ 4.8 or clang++ 3.4".
+  fails_with :clang if MacOS.version <= :snow_leopard
+  fails_with :llvm
+  fails_with :gcc_4_0
+  fails_with :gcc
+  ("4.3".."4.7").each do |n|
+    fails_with :gcc => n
   end
 
+  # We track major/minor from upstream Node releases.
+  # We will accept *important* npm patch releases when necessary.
+  # https://github.com/Homebrew/homebrew/pull/46098#issuecomment-157802319
   resource "npm" do
-    url "https://registry.npmjs.org/npm/-/npm-2.14.7.tgz"
-    sha256 "54f3a5195a1e6b52fc954749e81f8abf1f7c8ca912b90ecf2b33581800d0f6a5"
+    url "https://registry.npmjs.org/npm/-/npm-3.6.0.tgz"
+    sha256 "e686676c9d6db00f43f415998a8e0f47f415549f850f4b86ffdc7d7677db70e0"
   end
 
   resource "icu4c" do
     url "https://ssl.icu-project.org/files/icu4c/56.1/icu4c-56_1-src.tgz"
+    mirror "https://ftp.mirrorservice.org/sites/download.qt-project.org/development_releases/prebuilt/icu/src/icu4c-56_1-src.tgz"
     version "56.1"
     sha256 "3a64e9105c734dcf631c0b3ed60404531bce6c0f5a64bfe1a6402a4cc2314816"
   end
@@ -47,6 +56,10 @@ class Node < Formula
     else
       args << "--with-intl=small-icu"
     end
+    # Fix collect2: fatal error: cannot find 'ld'
+    # The snapshot feature requires the gold linker.
+    # See https://github.com/nodejs/node/issues/4212
+    args << "--without-snapshot" if OS.linux?
 
     resource("icu4c").stage buildpath/"deps/icu"
 
@@ -60,10 +73,20 @@ class Node < Formula
       ENV.prepend_path "PATH", bin
       # set log level temporarily for npm's `make install`
       ENV["NPM_CONFIG_LOGLEVEL"] = "verbose"
+      # unset prefix temporarily for npm's `make install`
+      ENV.delete "NPM_CONFIG_PREFIX"
 
       cd buildpath/"npm_install" do
         system "./configure", "--prefix=#{libexec}/npm"
         system "make", "install"
+        # `package.json` has relative paths to the npm_install directory.
+        # This copies back over the vanilla `package.json` that is expected.
+        # https://github.com/Homebrew/homebrew/issues/46131#issuecomment-157845008
+        cp buildpath/"npm_install/package.json", libexec/"npm/lib/node_modules/npm"
+        # Remove manpage symlinks from the buildpath, they are breaking bottle
+        # creation. The real manpages are living in libexec/npm/lib/node_modules/npm/man/
+        # https://github.com/Homebrew/homebrew/pull/47081#issuecomment-165280470
+        rm_rf libexec/"npm/share/"
       end
 
       if build.with? "completion"
@@ -95,8 +118,8 @@ class Node < Formula
     ["man1", "man3", "man5", "man7"].each do |man|
       # Dirs must exist first: https://github.com/Homebrew/homebrew/issues/35969
       mkdir_p HOMEBREW_PREFIX/"share/man/#{man}"
-      rm_f Dir[HOMEBREW_PREFIX/"share/man/#{man}/{npm.,npm-,npmrc.}*"]
-      ln_sf Dir[libexec/"npm/lib/node_modules/npm/man/#{man}/npm*"], HOMEBREW_PREFIX/"share/man/#{man}"
+      rm_f Dir[HOMEBREW_PREFIX/"share/man/#{man}/{npm.,npm-,npmrc.,package.json.}*"]
+      ln_sf Dir[libexec/"npm/lib/node_modules/npm/man/#{man}/{npm,package.json}*"], HOMEBREW_PREFIX/"share/man/#{man}"
     end
 
     npm_root = node_modules/"npm"
@@ -115,6 +138,14 @@ class Node < Formula
       EOS
     end
 
+    if build.without? "full-icu"
+      s += <<-EOS.undent
+        Please note by default only English locale support is provided. If you need
+        full locale support you should:
+          `brew reinstall node --with-full-icu`
+      EOS
+    end
+
     s
   end
 
@@ -122,12 +153,10 @@ class Node < Formula
     path = testpath/"test.js"
     path.write "console.log('hello');"
 
-    output = `#{bin}/node #{path}`.strip
+    output = shell_output("#{bin}/node #{path}").strip
     assert_equal "hello", output
-    assert_equal 0, $?.exitstatus
-    output = `#{bin}/node -e "console.log(new Date('2015-09-15').toLocaleDateString('en'))"`.strip
-    assert_match %r{^9/1[45]/2015$}, output # depends on system timezone
-    assert_equal 0, $?.exitstatus
+    output = shell_output("#{bin}/node -e 'console.log(new Intl.NumberFormat().format(1234.56))'").strip
+    assert_equal "1,234.56", output
 
     if build.with? "npm"
       # make sure npm can find node

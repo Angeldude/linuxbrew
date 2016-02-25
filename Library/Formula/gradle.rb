@@ -1,8 +1,10 @@
 class Gradle < Formula
   desc "Build system based on the Groovy language"
   homepage "https://www.gradle.org/"
-  url "https://downloads.gradle.org/distributions/gradle-2.7-bin.zip"
-  sha256 "cde43b90945b5304c43ee36e58aab4cc6fb3a3d5f9bd9449bb1709a68371cb06"
+  url "https://downloads.gradle.org/distributions/gradle-2.11-bin.zip"
+  sha256 "8d7437082356c9fd6309a4479c8db307673965546daea445c6c72759cd6b1ed6"
+
+  bottle :unneeded
 
   def install
     libexec.install %w[bin lib]
@@ -10,6 +12,7 @@ class Gradle < Formula
   end
 
   test do
+    ENV.java_cache
     output = shell_output("#{bin}/gradle --version")
     assert_match /Gradle #{version}/, output
   end

@@ -1,15 +1,14 @@
 class Cassandra < Formula
   desc "Eventually consistent, distributed key-value store"
   homepage "https://cassandra.apache.org"
-  url "https://www.apache.org/dyn/closer.cgi?path=/cassandra/2.2.2/apache-cassandra-2.2.2-bin.tar.gz"
-  mirror "https://archive.apache.org/dist/cassandra/2.2.2/apache-cassandra-2.2.2-bin.tar.gz"
-  sha256 "72faa82f1dadd40984e732918d069a55b79adf5e4ccd23d2651cbd20b0a34e80"
+  url "https://www.apache.org/dyn/closer.cgi?path=/cassandra/3.0.3/apache-cassandra-3.0.3-bin.tar.gz"
+  mirror "https://archive.apache.org/dist/cassandra/3.0.3/apache-cassandra-3.0.3-bin.tar.gz"
+  sha256 "555417f0d3b5c73fda7388a23becba28f2b87b1d6de082b7afde8d56b29ba4dd"
 
   bottle do
-    revision 1
-    sha256 "d6119d0ed97cf13a669bd9320e02457b210529d3738597254a8e56756b1e7484" => :el_capitan
-    sha256 "13b5bea82ee66a4ab14ca0c9a74acc6573171c724bff52c0606ffe0e4d04bca6" => :yosemite
-    sha256 "67fbda0d172bfc35da1da4d50cf633f14ad39f1c2ad5d56b7d68145d271d6ac5" => :mavericks
+    sha256 "583256e24915ac70e7dd0492ad3c6b5d93dc5561fadf1d30dc2b9bf76c4653cd" => :el_capitan
+    sha256 "bd29838b649c95ef6f45668630a125bc6e29d5e293bebb476f43124aaebf4a11" => :yosemite
+    sha256 "4b46f49f3761a67d705d97f653228247d0f58712e2ff58dd0f8cf79bf33f3ea7" => :mavericks
   end
 
   depends_on :python if MacOS.version <= :snow_leopard
@@ -41,8 +40,8 @@ class Cassandra < Formula
   end
 
   resource "cassandra-driver" do
-    url "https://pypi.python.org/packages/source/c/cassandra-driver/cassandra-driver-2.6.0.tar.gz"
-    sha256 "753505a02b4c6f9b5ef18dec36a13f17fb458c98925eea62c94a8839d5949717"
+    url "https://pypi.python.org/packages/source/c/cassandra-driver/cassandra-driver-3.0.0.tar.gz"
+    sha256 "b84e3a0716564f1f6a0deba120308d801f0232010d9c2df90579de293e59fa78"
   end
 
   def install
@@ -113,5 +112,9 @@ class Cassandra < Formula
       </dict>
     </plist>
     EOS
+  end
+
+  test do
+    system "#{bin}/cassandra", "-v"
   end
 end

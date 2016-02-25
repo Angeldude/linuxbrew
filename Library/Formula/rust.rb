@@ -3,12 +3,12 @@ class Rust < Formula
   homepage "https://www.rust-lang.org/"
 
   stable do
-    url "https://static.rust-lang.org/dist/rustc-1.3.0-src.tar.gz"
-    sha256 "ea02d7bc9e7de5b8be3fe6b37ea9b2bd823f9a532c8e4c47d02f37f24ffa3126"
+    url "https://static.rust-lang.org/dist/rustc-1.6.0-src.tar.gz"
+    sha256 "3002a4a00004b0727709abeefe1ab1b2731845e4dab74566f363861801bb3326"
 
     resource "cargo" do
       # git required because of submodules
-      url "https://github.com/rust-lang/cargo.git", :tag => "0.5.0", :revision => "8d21fd21a6b20056e9b5745e4e3f3b4279dc7fe4"
+      url "https://github.com/rust-lang/cargo.git", :tag => "0.8.0", :revision => "28a0cbb2212c295264a7a3031a4be0113a17aa91"
     end
 
     # name includes date to satisfy cache
@@ -31,15 +31,20 @@ class Rust < Formula
   end
 
   bottle do
-    revision 1
-    sha256 "a7e378d6122dbebc8ce8eec2241274c1b907d0dd680b365667f357a02bc98ebc" => :el_capitan
-    sha256 "655e683440bf88930c3bbab1885047949c260809c71e9c75cd36944b35165839" => :yosemite
-    sha256 "7a0b98815c97e953e98323a42b4b532f4ec6ec83589d83042e541fcc06b60098" => :mavericks
+    sha256 "8106b9f787d3f5079de03b6cae43cc5cf03ef3bf9e4782fbb117d4a1ad489075" => :el_capitan
+    sha256 "21355f678c6c265630f8028495efe3d248429f0b038c18e5ba2cd24bd5bf17de" => :yosemite
+    sha256 "0f238aa5d836cdba1846e50696f3fb1c5d1a6a3d1b107a39489226014d86ee93" => :mavericks
   end
 
+  option "with-llvm", "Build with brewed LLVM. By default, Rust's LLVM will be used."
+
   depends_on "cmake" => :build
-  depends_on "pkg-config" => :build
+  depends_on "pkg-config" => :run
+  depends_on "llvm" => :optional
   depends_on "openssl"
+  depends_on "libssh2"
+
+  conflicts_with "multirust", :because => "both install rustc, rustdoc, cargo, rust-lldb, rust-gdb"
 
   # According to the official readme, GCC 4.7+ is required
   fails_with :gcc_4_0
@@ -49,9 +54,16 @@ class Rust < Formula
   end
 
   def install
+    # Because we copy the source tree to a temporary build directory,
+    # the absolute paths written to the `gitdir` files of the
+    # submodules are no longer accurate, and running `git submodule
+    # update` during the configure step fails.
+    ENV["CFG_DISABLE_MANAGE_SUBMODULES"] = "1" if build.head?
+
     args = ["--prefix=#{prefix}"]
     args << "--disable-rpath" if build.head?
     args << "--enable-clang" if ENV.compiler == :clang
+    args << "--llvm-root=#{Formula["llvm"].opt_prefix}" if build.with? "llvm"
     if build.head?
       args << "--release-channel=nightly"
     else

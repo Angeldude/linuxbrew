@@ -3,21 +3,18 @@ require "language/go"
 class Deisctl < Formula
   desc "Deis Control Utility"
   homepage "http://deis.io/"
-  url "https://github.com/deis/deis/archive/v1.10.0.tar.gz"
-  sha256 "afdb0ae576a9c05af2e634a3ac83df9bae99cef17cfd2f1e2c8b7713107e769b"
+  url "https://github.com/deis/deis/archive/v1.12.2.tar.gz"
+  sha256 "48aa8f81697b213bd25e95bc2065f7c0dc75e824d7420e71856e102cc16a5229"
 
   bottle do
     cellar :any_skip_relocation
-    sha256 "938d5e24e4d5d930f30c79eb3917e20562aaaeee99eae65c96060ab132155a49" => :el_capitan
-    sha256 "abe80f8373fb24b67bd926ded9c8fba9878db64e0edc23553a172c81f9c21704" => :yosemite
-    sha256 "78708383d85baaf985463a1f3bd3fe44a4b4667149df58e38896ddce724e964c" => :mavericks
+    sha256 "0b87222a22e030527e1a0d323cd8a83f96ab832cd9c99dc1c488ced7b644f137" => :el_capitan
+    sha256 "982250bc46e2671adfe12b75b53726d1d27440b5d2b70e02f003cbd9801e3d84" => :yosemite
+    sha256 "ed153dd8ce280c4bb58d623bb8bc74607b70b3ccd9a762543767bc8abb372632" => :mavericks
   end
 
   depends_on "go" => :build
-
-  go_resource "github.com/tools/godep" do
-    url "https://github.com/tools/godep.git", :revision => "66fa30a455532b64a7f70f8716a274c833bee3c6"
-  end
+  depends_on "godep" => :build
 
   go_resource "github.com/docopt/docopt-go" do
     url "https://github.com/docopt/docopt-go.git", :revision => "854c423c810880e30b9fecdabb12d54f4a92f9bb"
@@ -37,16 +34,10 @@ class Deisctl < Formula
 
   def install
     ENV["GOPATH"] = buildpath
-    ENV.prepend_create_path "PATH", buildpath/"bin"
-
     mkdir_p "#{buildpath}/deisctl/Godeps/_workspace/src/github.com/deis"
     ln_s buildpath, "#{buildpath}/deisctl/Godeps/_workspace/src/github.com/deis/deis"
 
     Language::Go.stage_deps resources, buildpath/"src"
-
-    cd "src/github.com/tools/godep" do
-      system "go", "install"
-    end
 
     cd "deisctl" do
       system "godep", "go", "build", "-a", "-ldflags", "-s", "-o", "dist/deisctl"
