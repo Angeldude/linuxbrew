@@ -7,9 +7,11 @@ class Ansible < Formula
   head "https://github.com/ansible/ansible.git", :branch => "devel"
 
   bottle do
-    sha256 "347001579d8a5692654f622f820e06f790e28d84517ca41a64c3466f0c6ab156" => :el_capitan
-    sha256 "6000987100534bc9ddf530d071e367cd21a22c569c24ef9781a129a8674384ef" => :yosemite
-    sha256 "b22b007ca66ede18a565c4f9e154cfc1a088f24299cc447275bbb2b86fd1e941" => :mavericks
+    revision 2
+    sha256 "457a6bcbe29bde7543544dbd44d702e9d6ee51135dc59687cd923f8737a3d31d" => :el_capitan
+    sha256 "339d9bc27942b45d7322f6960422718523a92dbd167869bb3f5cb80d54075369" => :yosemite
+    sha256 "d0684bc344e8bfee3ecdc79316c24b57cf06c1417cc84a79643c10d81ea74d96" => :mavericks
+    sha256 "e2be3e2a3f6033f0ef2d4feddc674f30997e5bc78a265ea3fff315d43d0654b8" => :x86_64_linux
   end
 
   devel do
@@ -21,6 +23,7 @@ class Ansible < Formula
   depends_on :python if MacOS.version <= :snow_leopard
   depends_on "libyaml"
   depends_on "openssl"
+  depends_on "libffi" unless OS.mac?
 
   #
   # ansible (core dependencies)
@@ -78,8 +81,8 @@ class Ansible < Formula
   end
 
   resource "cryptography" do
-    url "https://pypi.python.org/packages/source/c/cryptography/cryptography-1.1.2.tar.gz"
-    sha256 "7f51459f84d670444275e615839f4542c93547a12e938a0a4906dafe5f7de153"
+    url "https://pypi.python.org/packages/source/c/cryptography/cryptography-1.2.3.tar.gz"
+    sha256 "8eb11c77dd8e73f48df6b2f7a7e16173fe0fe8fdfe266232832e88477e08454e"
   end
 
   resource "enum34" do
@@ -214,6 +217,11 @@ class Ansible < Formula
   #
   # pyrax (for Rackspace support)
   #
+  resource "pytz" do
+    url "https://pypi.python.org/packages/source/p/pytz/pytz-2015.7.tar.bz2"
+    sha256 "fbd26746772c24cb93c8b97cbdad5cb9e46c86bbdb1b9d8a743ee00e2fb1fc5d"
+  end
+
   resource "Babel" do
     url "https://pypi.python.org/packages/source/B/Babel/Babel-2.2.0.tar.gz"
     sha256 "d8cb4c0e78148aee89560f9fe21587aa57739c975bb89ff66b1e842cc697428f"
@@ -222,6 +230,11 @@ class Ansible < Formula
   resource "debtcollector" do
     url "https://pypi.python.org/packages/source/d/debtcollector/debtcollector-1.2.0.tar.gz"
     sha256 "6467a3a074f0f042dc610f994c4f67a26d10f4e2e6b4d12adfb8380dc7a5d169"
+  end
+
+  resource "dnspython" do
+    url "https://pypi.python.org/packages/source/d/dnspython/dnspython-1.12.0.zip"
+    sha256 "63bd1fae61809eedb91f84b2185816fac1270ae51494fbdd36ea25f904a8502f"
   end
 
   resource "funcsigs" do
@@ -328,11 +341,6 @@ class Ansible < Formula
   resource "python-novaclient" do
     url "https://pypi.python.org/packages/source/p/python-novaclient/python-novaclient-3.2.0.tar.gz"
     sha256 "b00a70ba72b068adb6aaca19b14ed4bde9c950ef4f24234d095f9f9985073179"
-  end
-
-  resource "pytz" do
-    url "https://pypi.python.org/packages/source/p/pytz/pytz-2015.7.tar.bz2"
-    sha256 "fbd26746772c24cb93c8b97cbdad5cb9e46c86bbdb1b9d8a743ee00e2fb1fc5d"
   end
 
   resource "rackspace-auth-openstack" do

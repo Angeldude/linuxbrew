@@ -159,7 +159,7 @@ class FormulaTests < Homebrew::TestCase
       homepage "http://example.com"
       url "http://example.com/test-0.1.tbz"
       mirror "http://example.org/test-0.1.tbz"
-      sha1 TEST_SHA1
+      sha256 TEST_SHA256
 
       head "http://example.com/test.git", :tag => "foo"
 
@@ -362,7 +362,8 @@ class FormulaTests < Homebrew::TestCase
     assert_predicate f2, :installed?
     assert_predicate f3, :installed?
 
-    assert_equal f3.installed_kegs[0..1], f3.eligible_kegs_for_cleanup
+    assert_equal [Keg.new(f1.prefix), Keg.new(f2.prefix)],
+      f3.eligible_kegs_for_cleanup.sort_by(&:version)
   ensure
     [f1, f2, f3].each(&:clear_cache)
     f3.rack.rmtree

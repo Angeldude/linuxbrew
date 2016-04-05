@@ -2,7 +2,11 @@
 
 [Linuxbrew](http://linuxbrew.sh) is a fork of [Homebrew](http://brew.sh), the Mac OS package manager, for Linux.
 
+It can be installed in your home directory and does not require root access. The same package manager can be used on both your Linux server and your Mac laptop. Installing a modern version of *glibc* and *gcc* in your home directory on an old distribution of Linux takes five minutes.
+
 Features, usage and installation instructions are [summarised on the homepage](http://linuxbrew.sh).
+
+To receive updates of major changes to Linuxbrew subscribe to the [Linuxbrew Updates](https://github.com/Linuxbrew/linuxbrew/issues/864) issue on GitHub.
 
 Install Linuxbrew (tl;dr)
 -------------------------
@@ -27,7 +31,7 @@ Dependencies
 ------------
 
 * **Ruby** 1.8.6 or newer
-+ **GCC** 4.2 or newer
++ **GCC** 4.4 or newer
 + **Linux** 2.6.16 or newer
 + **64-bit x86** or **32-bit ARM** platform
 
@@ -36,13 +40,13 @@ Paste at a Terminal prompt:
 ### Debian or Ubuntu
 
 ```sh
-sudo apt-get install build-essential curl git m4 python-setuptools ruby texinfo libbz2-dev libcurl4-openssl-dev libexpat-dev libncurses-dev zlib1g-dev
+sudo apt-get install build-essential curl git python-setuptools ruby
 ```
 
 ### Fedora, CentOS or Red Hat
 
 ```sh
-sudo yum groupinstall 'Development Tools' && sudo yum install curl git irb m4 python-setuptools ruby texinfo bzip2-devel curl-devel expat-devel ncurses-devel zlib-devel
+sudo yum groupinstall 'Development Tools' && sudo yum install curl git irb python-setuptools ruby
 ```
 
 ### 32-bit x86 platforms

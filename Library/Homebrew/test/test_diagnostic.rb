@@ -62,7 +62,7 @@ class DiagnosticChecksTest < Homebrew::TestCase
     mod = HOMEBREW_REPOSITORY.stat.mode & 0777
     HOMEBREW_REPOSITORY.chmod 0555
 
-    assert_match "The #{HOMEBREW_REPOSITORY} is not writable.",
+    assert_match "#{HOMEBREW_REPOSITORY} is not writable.",
       @checks.check_access_homebrew_repository
   ensure
     HOMEBREW_REPOSITORY.chmod mod
@@ -186,9 +186,15 @@ class DiagnosticChecksTest < Homebrew::TestCase
   end
 
   def test_check_DYLD_vars
-    ENV["DYLD_INSERT_LIBRARIES"] = "foo"
-    assert_match "Setting DYLD_INSERT_LIBRARIES",
-      @checks.check_DYLD_vars
+    if OS.mac?
+      ENV["DYLD_INSERT_LIBRARIES"] = "foo"
+      assert_match "Setting DYLD_INSERT_LIBRARIES",
+        @checks.check_DYLD_vars
+    else
+      ENV["LD_LIBRARY_PATH"] = "foo"
+      assert_match "Setting LD_",
+        @checks.check_DYLD_vars
+    end
   end
 
   def test_check_for_symlinked_cellar

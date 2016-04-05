@@ -31,17 +31,17 @@ require "rexml/document"
 require "rexml/xmldecl"
 require "rexml/cdata"
 require "tap"
-require "core_formula_repository"
 
 module Homebrew
   BYTES_IN_1_MEGABYTE = 1024*1024
+  HOMEBREW_TAP_REGEX = %r{^([\w-]+)/homebrew-([\w-]+)$}
 
   def resolve_test_tap
     if tap = ARGV.value("tap")
       return Tap.fetch(tap)
     end
 
-    if tap = ENV["TRAVIS_REPO_SLUG"]
+    if (tap = ENV["TRAVIS_REPO_SLUG"]) && (tap =~ HOMEBREW_TAP_REGEX)
       return Tap.fetch(tap)
     end
 
@@ -57,12 +57,12 @@ module Homebrew
       # Also can get tap from Jenkins GIT_URL.
       url_path = git_url.sub(%r{^https?://github\.com/}, "").chomp("/").sub(%r{\.git$}, "")
       begin
-        return Tap.fetch(url_path)
+        return Tap.fetch(url_path) if url_path =~ HOMEBREW_TAP_REGEX
       rescue
       end
     end
 
-    CoreFormulaRepository.instance
+    CoreTap.instance
   end
 
   class Step
@@ -209,7 +209,7 @@ module Homebrew
       @added_formulae = []
       @modified_formula = []
       @steps = []
-      @tap = options.fetch(:tap,  CoreFormulaRepository.instance)
+      @tap = options.fetch(:tap, CoreTap.instance)
       @repository = @tap.path
       @skip_homebrew = options.fetch(:skip_homebrew, false)
 
@@ -286,6 +286,15 @@ module Homebrew
       # Use Travis CI pull-request variables for pull request jobs.
       elsif travis_pr
         @url = "https://github.com/#{ENV["TRAVIS_REPO_SLUG"]}/pull/#{ENV["TRAVIS_PULL_REQUEST"]}"
+        @hash = nil
+      elsif ENV["CI_PULL_REQUEST"] && !ENV["CI_PULL_REQUEST"].empty?
+        # Circle CI build of a pull request.
+        @url = ENV["CI_PULL_REQUEST"]
+        @hash = nil
+      elsif ENV["GIT_BRANCH"] && ENV["GIT_BRANCH"].include?(":")
+        # Docker automated build of a pull request
+        user, branch = ENV["GIT_BRANCH"].split(":")
+        @url = "https://github.com/#{user}/linuxbrew/commit/#{ENV["GIT_SHA1"]}"
         @hash = nil
       end
 
@@ -397,7 +406,12 @@ module Homebrew
     def formula(formula_name)
       @category = "#{__method__}.#{formula_name}"
 
-      test "brew", "uses", "--recursive", formula_name
+      if OS.linux?
+        # --recursive is very slow. See https://github.com/Linuxbrew/linuxbrew/issues/939
+        test "brew", "uses", formula_name
+      else
+        test "brew", "uses", "--recursive", formula_name
+      end
 
       formula = Formulary.factory(formula_name)
 
@@ -609,7 +623,7 @@ module Homebrew
       @category = __method__
       return if @skip_homebrew
       test "brew", "tests"
-      if @tap.core_formula_repository?
+      if @tap.core_tap?
         tests_args = ["--no-compat"]
         readall_args = ["--aliases"]
         if RUBY_VERSION.split(".").first.to_i >= 2
@@ -728,10 +742,22 @@ module Homebrew
   end
 
   def test_ci_upload(tap)
+    if ENV["GIT_BRANCH"]
+      if ENV["GIT_BRANCH"].include?(":")
+        # Docker automated build of a pull request.
+        docker_user, docker_branch = ENV["GIT_BRANCH"].split(":")
+      else
+        # Docker automated build of master.
+        docker_user = nil
+        docker_branch = ENV["GIT_BRANCH"]
+      end
+      docker_sha1 = ENV["GIT_SHA1"]
+    end
+
     jenkins = ENV["JENKINS_HOME"]
     job = ENV["UPSTREAM_JOB_NAME"]
     id = ENV["UPSTREAM_BUILD_ID"]
-    raise "Missing Jenkins variables!" if !jenkins || !job || !id
+    raise "Missing Jenkins, Circle or Docker variables!" if (!jenkins || !job || !id) && !ENV["CIRCLE_BUILD_NUM"] && !docker_branch
 
     bintray_user = ENV["BINTRAY_USER"]
     bintray_key = ENV["BINTRAY_KEY"]
@@ -748,17 +774,26 @@ module Homebrew
     ARGV << "--verbose"
     ARGV << "--keep-old" if ENV["UPSTREAM_BOTTLE_KEEP_OLD"]
 
-    bottles = Dir["#{jenkins}/jobs/#{job}/configurations/axis-version/*/builds/#{id}/archive/*.bottle*.*"]
-    return if bottles.empty?
-    FileUtils.cp bottles, Dir.pwd, :verbose => true
+    if jenkins
+      bottles = Dir["#{jenkins}/jobs/#{job}/configurations/axis-version/*/builds/#{id}/archive/*.bottle*.*"]
+      return if bottles.empty?
+      FileUtils.cp bottles, Dir.pwd, :verbose => true
+    else
+      return if Dir["*.bottle*.*"].empty?
+    end
 
-    ENV["GIT_AUTHOR_NAME"] = ENV["GIT_COMMITTER_NAME"] = "BrewTestBot"
-    ENV["GIT_AUTHOR_EMAIL"] = ENV["GIT_COMMITTER_EMAIL"] = "brew-test-bot@googlegroups.com"
+    if OS.mac?
+      ENV["GIT_AUTHOR_NAME"] = ENV["GIT_COMMITTER_NAME"] = "BrewTestBot"
+      ENV["GIT_AUTHOR_EMAIL"] = ENV["GIT_COMMITTER_EMAIL"] = "brew-test-bot@googlegroups.com"
+    elsif OS.linux?
+      ENV["GIT_AUTHOR_NAME"] = ENV["GIT_COMMITTER_NAME"] = "LinuxbrewTestBot"
+      ENV["GIT_AUTHOR_EMAIL"] = ENV["GIT_COMMITTER_EMAIL"] = "testbot@linuxbrew.sh"
+    end
     ENV["GIT_WORK_TREE"] = tap.path
     ENV["GIT_DIR"] = "#{ENV["GIT_WORK_TREE"]}/.git"
 
-    pr = ENV["UPSTREAM_PULL_REQUEST"]
-    number = ENV["UPSTREAM_BUILD_NUMBER"]
+    pr = ENV["UPSTREAM_PULL_REQUEST"] || ENV["CIRCLE_PR_NUMBER"]
+    number = ENV["UPSTREAM_BUILD_NUMBER"] || ENV["CIRCLE_BUILD_NUM"]
 
     quiet_system "git", "am", "--abort"
     quiet_system "git", "rebase", "--abort"
@@ -767,25 +802,34 @@ module Homebrew
     safe_system "brew", "update"
 
     if pr
-      pull_pr = if tap.core_formula_repository?
+      pull_pr = if tap.core_tap?
         pr
       else
         "https://github.com/#{tap.user}/homebrew-#{tap.repo}/pull/#{pr}"
       end
       safe_system "brew", "pull", "--clean", pull_pr
+    elsif docker_sha1
+      url = if tap.core_tap?
+        "https://github.com/#{docker_user}/linuxbrew/commit/#{docker_sha1}"
+      else
+        "https://github.com/#{docker_user}/homebrew-#{tap.repo}/commit/#{docker_sha1}"
+      end
+      safe_system "brew", "pull", "--clean", url
     end
 
     bottle_args = ["--merge", "--write", *Dir["*.bottle.rb"]]
     bottle_args << "--keep-old" if ARGV.include? "--keep-old"
     system "brew", "bottle", *bottle_args
 
-    remote_repo = tap.core_formula_repository? ? "homebrew" : "homebrew-#{tap.repo}"
-    remote = "git@github.com:BrewTestBot/#{remote_repo}.git"
-    tag = pr ? "pr-#{pr}" : "testing-#{number}"
+    project = OS.mac? ? "homebrew" : "linuxbrew"
+    remote_repo = tap.core_tap? ? project : "homebrew-#{tap.repo}"
+    remote = docker_branch ? "testbot" : "git@github.com:#{ENV["GIT_AUTHOR_NAME"]}/#{remote_repo}.git"
+    tag = docker_branch ? "pr-#{docker_user}-#{docker_branch}" : pr ? "pr-#{pr}" : "testing-#{number}"
     safe_system "git", "push", "--force", remote, "master:master", ":refs/tags/#{tag}"
 
+    bintray_org = project
     bintray_repo = Bintray.repository(tap)
-    bintray_repo_url = "https://api.bintray.com/packages/homebrew/#{bintray_repo}"
+    bintray_repo_url = "https://api.bintray.com/packages/#{bintray_org}/#{bintray_repo}"
     formula_packaged = {}
 
     Dir.glob("*.bottle*.tar.gz") do |filename|
@@ -798,7 +842,7 @@ module Homebrew
                 "#{BottleSpecification::DEFAULT_DOMAIN}/#{bintray_repo}/#{filename}"
         raise <<-EOS.undent
           #{filename} is already published. Please remove it manually from
-          https://bintray.com/homebrew/#{bintray_repo}/#{bintray_package}/view#files
+          https://bintray.com/#{bintray_org}/#{bintray_repo}/#{bintray_package}/view#files
         EOS
       end
 
@@ -807,6 +851,7 @@ module Homebrew
         unless system "curl", "--silent", "--fail", "--output", "/dev/null", package_url
           package_blob = <<-EOS.undent
             {"name": "#{bintray_package}",
+             #{'"licenses":["BSD 2-Clause"], "vcs_url":"https://github.com/Linuxbrew/linuxbrew.git",' if OS.linux?}
              "public_download_numbers": true,
              "public_stats": true}
           EOS
@@ -818,7 +863,7 @@ module Homebrew
         formula_packaged[formula_name] = true
       end
 
-      content_url = "https://api.bintray.com/content/homebrew"
+      content_url = "https://api.bintray.com/content/#{bintray_org}"
       content_url += "/#{bintray_repo}/#{bintray_package}/#{version}/#{filename}"
       content_url += "?override=1"
       curl "--silent", "--fail", "-u#{bintray_user}:#{bintray_key}",

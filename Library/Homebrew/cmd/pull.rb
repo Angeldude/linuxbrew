@@ -23,7 +23,6 @@ require "utils"
 require "utils/json"
 require "formula"
 require "tap"
-require "core_formula_repository"
 
 module Homebrew
   def pull
@@ -35,22 +34,37 @@ module Homebrew
     end
     do_bump = ARGV.include?("--bump") && !ARGV.include?("--clean")
 
+    github_repo = ""
+    bintray_project = "homebrew"
     bintray_fetch_formulae = []
 
     ARGV.named.each do |arg|
       if arg.to_i > 0
         issue = arg
-        url = "https://github.com/Homebrew/homebrew/pull/#{arg}"
-        tap = CoreFormulaRepository.instance
+        if OS.mac?
+          url = "https://github.com/Homebrew/homebrew/pull/#{arg}"
+        elsif OS.linux?
+          url = "https://github.com/Linuxbrew/linuxbrew/pull/#{arg}"
+          bintray_project = "linuxbrew"
+          github_repo = "Linuxbrew/linuxbrew"
+        end
+        tap = CoreTap.instance
       elsif (testing_match = arg.match %r{brew.sh/job/Homebrew.*Testing/(\d+)/})
         _, testing_job = *testing_match
         url = "https://github.com/Homebrew/homebrew/compare/master...BrewTestBot:testing-#{testing_job}"
-        tap = CoreFormulaRepository.instance
+        tap = CoreTap.instance
         odie "Testing URLs require `--bottle`!" unless ARGV.include?("--bottle")
-      elsif (url_match = arg.match %r[https://github\.com/Linuxbrew/linuxbrew/(?:pull/(\d+)|commit/[0-9a-fA-F]{4,40})])
-        _, issue = *url_match
-        url = "https://github.com/Linuxbrew/linuxbrew/pull/#{issue}"
-        tap = CoreFormulaRepository.instance
+      elsif (url_match = arg.match %r[https://github\.com/Linuxbrew/linuxbrew/pull/(\d+)\?([\w-]+):([\w-]+)])
+        url, issue, user, rev = *url_match
+        url = url.sub(/\?.*/, "")
+        tap = CoreTap.instance
+        bintray_project = "linuxbrew"
+        github_repo = "Linuxbrew/linuxbrew"
+      elsif (url_match = arg.match %r[https://github\.com/([\w-]+)/linuxbrew/(?:pull/(\d+)|commit/[0-9a-fA-F]{4,40})])
+        url, user, issue = *url_match
+        tap = CoreTap.instance
+        bintray_project = "linuxbrew"
+        github_repo = "Linuxbrew/linuxbrew"
       elsif (api_match = arg.match HOMEBREW_PULL_API_REGEX)
         _, user, repo, issue = *api_match
         url = "https://github.com/#{user}/homebrew#{repo}/pull/#{issue}"
@@ -131,8 +145,9 @@ module Homebrew
       if issue && !ARGV.include?("--clean")
         ohai "Patch closes issue ##{issue}"
         # If this is a pull request, append a close message.
-        unless message.include? "Closes ##{issue}."
-          message += "\nCloses ##{issue}."
+        closes = "Closes #{github_repo}##{issue}."
+        unless message.include? closes
+          message += "\n#{closes}"
         end
       end
 
@@ -171,8 +186,14 @@ module Homebrew
           url
         else
           bottle_branch = "pull-bottle-#{issue}"
-          if tap.core_formula_repository?
-            "https://github.com/BrewTestBot/homebrew/compare/homebrew:master...pr-#{issue}"
+          if tap.core_tap?
+            if user && rev
+              "https://github.com/LinuxbrewTestBot/linuxbrew/compare/linuxbrew:master...pr-#{user}-#{rev}"
+            elsif github_repo == "Linuxbrew/linuxbrew"
+              "https://github.com/LinuxbrewTestBot/linuxbrew/compare/linuxbrew:master...pr-#{issue}"
+            else
+              "https://github.com/BrewTestBot/homebrew/compare/homebrew:master...pr-#{issue}"
+            end
           else
             "https://github.com/BrewTestBot/homebrew-#{tap.repo}/compare/homebrew:master...pr-#{issue}"
           end
@@ -199,8 +220,9 @@ module Homebrew
             version = f.pkg_version
             curl "-w", '\n', "--silent", "--fail",
               "-u#{bintray_user}:#{bintray_key}", "-X", "POST",
-              "-d", '{"publish_wait_for_secs": -1}',
-              "https://api.bintray.com/content/homebrew/#{repo}/#{package}/#{version}/publish"
+              "-H", "Content-Type: application/json",
+              "-d", '{"publish_wait_for_secs": 0}',
+              "https://api.bintray.com/content/#{bintray_project}/#{repo}/#{package}/#{version}/publish"
             bintray_fetch_formulae << f
           end
         else
@@ -325,6 +347,7 @@ module Homebrew
   def current_versions_from_info_external(formula_name)
     versions = {}
     json = Utils.popen_read(HOMEBREW_BREW_FILE, "info", "--json=v1", formula_name)
+    json.force_encoding("UTF-8") if json.respond_to?(:force_encoding)
     if $?.success?
       info = Utils::JSON.load(json)
       [:stable, :devel, :head].each do |vertype|

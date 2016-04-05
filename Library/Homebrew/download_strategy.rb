@@ -190,7 +190,7 @@ class AbstractFileDownloadStrategy < AbstractDownloadStrategy
       with_system_path { buffered_write("bunzip2") }
     when :gzip, :bzip2, :compress, :tar
       # Assume these are also tarred
-      tar_flags = (ARGV.verbose? && ENV["TRAVIS"].nil?) ? "xvf" : "xf"
+      tar_flags = (ARGV.verbose? && ENV["TRAVIS"].nil? && !OS.linux?) ? "xvf" : "xf"
       with_system_path { safe_system "tar", tar_flags, cached_location }
       chdir
     when :xz
@@ -451,7 +451,7 @@ class S3DownloadStrategy < CurlDownloadStrategy
       raise
     end
 
-    if @url !~ %r{^https?://+([^.]+).s3.amazonaws.com/+(.+)$}
+    if @url !~ %r{^https?://([^.].*)\.s3\.amazonaws\.com/(.+)$}
       raise "Bad S3 URL: " + @url
     end
     bucket = $1
